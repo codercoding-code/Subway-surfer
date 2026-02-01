@@ -1,1 +1,185 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Subway Runner 3D</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #ui {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      color: #fff;
+      font-size: 18px;
+      z-index: 10;
+    }
+    #game-over-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      color: #fff;
+      font-size: 24px;
+      z-index: 20;
+    }
+    .hidden { display: none; }
+    button {
+      padding: 12px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
+      background: #ffcc00;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">Score: <span id="score">0</span></div>
+  <div id="game-over-screen" class="hidden">
+    <div>Game Over</div>
+    <div style="margin:10px">Score: <span id="final-score"></span></div>
+    <button onclick="restart()">Restart</button>
+  </div>  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>  <script>
+    // --- CONFIG ---
+    const CONFIG = {
+      speed: 0.25,
+      gravity: -0.035,
+      jump: 0.7,
+      chunkSize: 20
+    };
 
+    const STATE = { menu:0, play:1, gameover:2 };
+    let currentState = STATE.play;
+
+    const game = {
+      x: 0,
+      y: 1,
+      vy: 0,
+      score: 0,
+      nextChunkZ: -20
+    };
+
+    // --- THREE SETUP ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x000000, 10, 60);
+
+    const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100);
+    camera.position.set(0, 3, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // --- LIGHTING ---
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dir = new THREE.DirectionalLight(0xffffff, 1);
+    dir.position.set(5, 10, 5);
+    scene.add(dir);
+
+    // --- PLAYER ---
+    const player = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 1.6, 0.8),
+      new THREE.MeshStandardMaterial({ color: 0xff4444 })
+    );
+    player.position.y = game.y;
+    scene.add(player);
+
+    // --- WORLD ---
+    const world = new THREE.Group();
+    scene.add(world);
+
+    function spawnChunk(z) {
+      const ground = new THREE.Mesh(
+        new THREE.BoxGeometry(6, 0.5, CONFIG.chunkSize),
+        new THREE.MeshStandardMaterial({ color: 0x333333 })
+      );
+      ground.position.z = z;
+      ground.position.y = -0.25;
+      world.add(ground);
+    }
+
+    function spawnInitialChunks() {
+      world.clear();
+      game.nextChunkZ = -20;
+      for (let i = 0; i < 8; i++) {
+        spawnChunk(game.nextChunkZ);
+        game.nextChunkZ -= CONFIG.chunkSize;
+      }
+    }
+
+    spawnInitialChunks();
+
+    // --- INPUT ---
+    window.addEventListener('touchstart', jump);
+    window.addEventListener('keydown', e => { if(e.code === 'Space') jump(); });
+
+    function jump() {
+      if (game.y <= 1.01) game.vy = CONFIG.jump;
+    }
+
+    // --- GAME LOOP ---
+    function animate() {
+      requestAnimationFrame(animate);
+      if (currentState !== STATE.play) return render();
+
+      game.vy += CONFIG.gravity;
+      game.y += game.vy;
+      if (game.y < 1) {
+        game.y = 1;
+        game.vy = 0;
+      }
+
+      player.position.y = game.y;
+
+      world.position.z += CONFIG.speed;
+      if (world.position.z >= CONFIG.chunkSize) {
+        world.position.z -= CONFIG.chunkSize;
+        spawnChunk(game.nextChunkZ);
+        game.nextChunkZ -= CONFIG.chunkSize;
+      }
+
+      game.score += 0.1;
+      document.getElementById('score').innerText = Math.floor(game.score);
+
+      render();
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+    }
+
+    function gameOver() {
+      if (currentState === STATE.gameover) return;
+      currentState = STATE.gameover;
+      document.getElementById('final-score').innerText = Math.floor(game.score);
+      document.getElementById('game-over-screen').classList.remove('hidden');
+    }
+
+    function restart() {
+      document.getElementById('game-over-screen').classList.add('hidden');
+      game.score = 0;
+      game.y = 1;
+      game.vy = 0;
+      world.position.z = 0;
+      spawnInitialChunks();
+      currentState = STATE.play;
+    }
+
+    animate();
+    window.addEventListener('resize', () => {
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script></body>
+</html>
